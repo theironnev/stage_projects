@@ -4,10 +4,6 @@
 #from py532lib.mifare import *
 from py532lib.mifare_gutter import *
 
-#pn532 = Pn532_i2c()
-#pn532.SAMconfigure()
-#card_data = pn532.read_mifare().get_data()
-BASE_WEIGHT_ADRS = 0x10 
 
 card = MifareGutter()
 card.SAMconfigure()
@@ -29,12 +25,12 @@ card.increment_gutter_usage()
 
 
 
-a=card.gutter_info()
+a= card.gutter_info()
 b = card.mifare_read(0x15)
 #g = data2.encode()
 print(a)
 print(b)
-print()
+
 
 
 #print(sectorB)

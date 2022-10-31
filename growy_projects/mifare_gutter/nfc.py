@@ -9,27 +9,18 @@ card = MifareGutter()
 card.SAMconfigure()
 
 uid =card.scan_field()
-weight = bytearray(b'8874.21')    
-
-f = b'\x00\x00\x00\x00'
-data = bytearray(b'\x00\x00\xFF\xFF' )
-mx_count = bytearray(b'\xFF\xFF\xFF\xFF' )
-#sectorB = card.mifare_sector_block(14)
-#adr = card.mifare_address(6,0)
-#card.mifare_write_standard(0x15,f)
-card.reset_gutter_used()
+weight = bytearray(b'8874.21') 
+gutter_type =  b'STLE'
+card.set_baseweight_gutter(weight)
+card.set_gutter_type(gutter_type)
+#card.reset_gutter_used()
 card.increment_gutter_usage()
 
 
 
-
-
-
 a= card.gutter_info()
-b = card.mifare_read(0x15)
-#g = data2.encode()
+print(uid)
 print(a)
-print(b)
 
 
 

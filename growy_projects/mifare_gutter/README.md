@@ -9,10 +9,10 @@ these values can be written to by the `MiFareGutter()` class.
 ***To learn more about how the Mifare cards work [click Here](https://www.nxp.com/docs/en/data-sheet/MF1S50YYX_V1.pdf)***
 <br/></br>
 ### Mifare_gutter() Callables
-De functions that are needed to write and store values to the ntag chip are listed here, </br>with a descriptioon of what parameters to use.
+De functions that are needed to write and store values to the ntag chip are listed here, </br>with a description of what parameters to use.
 </br></br>
 `MifareGutter().scan_field()`</br>
-This function should always be called when trying to communicate from the PN532 to a Mifare chip. It establishes a authentic connection
+This function should always be called when trying to communicate from the PN532 to a Mifare chip. It establishes a authentic connection and returns the Unique Identifier
 </br></br>
 `MifareGutter().set_baseweight_gutter(str_of_bytes)`<br/>
 This function writes the base weight of the gutter to the defined address block and puts a 'B' for Base in front of the string.<br/>

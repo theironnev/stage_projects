@@ -26,24 +26,17 @@ from py532lib.frame import Pn532Frame as Pn532Frame
 from py532lib.constants import *
 import logging
 import math
-import warnings
 
-
+MIFARE_COMMAND_AUTH_A = 0x60
+MIFARE_COMMAND_AUTH_B = 0x61
 MIFARE_COMMAND_READ = 0x30
 MIFARE_COMMAND_WRITE_16 = 0xA0
 MIFARE_COMMAND_WRITE_4 = 0xA2
+MIFARE_FACTORY_KEY = b"\xFF\xFF\xFF\xFF\xFF\xFF"
 MIFARE_WAIT_FOR_ENTRY = 0xFF # MxRtyPassiveActivation value: wait until card enters field.
 MIFARE_SAFE_RETRIES = 5 # This number of retries seems to detect most cards properlies.
 
-"address of hese parameters have to stay next to ech other in the same order fot de read functions to work"
-BASE_WEIGHT_ADRS = 0x10  #  BASE WEIGHT stored on 2 blocks address{0x10 & 0x11}
-LST_MESSURED_WEIGHT_ADRS = 0x12  #  LAST MESSURED WEIGHT is also stored on 2 blocks addresss{0x12 & 0x13}
-GUTTER_TYPE_ADRS = 0x14
-USE_COUNT = 0x15
-
-
-
-class MifareGutter(i2c.Pn532_i2c):
+class Mifare(i2c.Pn532_i2c):
 
     """This class allows for the communication with Mifare cards via
     the PN532.
@@ -52,12 +45,12 @@ class MifareGutter(i2c.Pn532_i2c):
     sophisticated tools such as reading the contents of a Mifare
     card or writing to them, access restrictions, and key management.
     """
-    
+
     def __init__(self):
         """Set up and configure PN532."""
         i2c.Pn532_i2c.__init__(self)
         self._uid = False
-    
+
     def set_max_retries(self,mx_rty_passive_activation):
         """Configure the PN532 for the number of retries attempted
         during the InListPassiveTarget operation (set to
@@ -153,11 +146,40 @@ class MifareGutter(i2c.Pn532_i2c):
         else:
             return (32 + ((address - 128) >> 4),(address - 128) & 15)
 
+    def mifare_auth_a(self,address,key_a):
+        """Authenticate the Mifare card with key A.
 
+        The "key_a" parameter is a bytearray that contains key A.
+        You may specify an address directly or use the mifare_address()
+        function to calculate it. Raises an IOError if authentication failed.
+        """
+        if self._uid == False:
+            raise RuntimeError("No Mifare card currently activated.")
+        if len(self._uid) == 4:
+            uid = self._uid
+        elif len(self._uid) == 7: # 10-byte UID cards don't exist yet.
+            uid = self._uid[3:7] # Sequence 1, keep it simple.
+        self.in_data_exchange(bytearray([MIFARE_COMMAND_AUTH_A,address]) + key_a + uid)
+
+    def mifare_auth_b(self,address,key_b):
+        """Authenticate the Mifare card with key B.
+
+        The "key_a" parameter is a bytearray that contains key B.
+        You may specify an address directly or use the mifare_address()
+        function to calculate it. Raises an IOError if authentication failed.
+        """
+        if self._uid == False:
+            raise RuntimeError("No Mifare card currently activated.")
+        if len(self._uid) == 4:
+            uid = self._uid
+        elif len(self._uid) == 7: # 10-byte UID cards don't exist yet.
+            uid = self._uid[3:7] # Sequence 1, keep it simple.
+        self.in_data_exchange(bytearray([MIFARE_COMMAND_AUTH_B,address]) + key_b + uid)
 
     def mifare_read(self,address):
         """Read and return 16 bytes from the data block at the given address."""
         return self.in_data_exchange(bytearray([MIFARE_COMMAND_READ,address]))
+    
 
     def mifare_write_standard(self,address,data):
         """Write 16 bytes to the data block on a Mifare Standard card
@@ -172,87 +194,70 @@ class MifareGutter(i2c.Pn532_i2c):
         if len(data) > 4:
             raise IndexError("Data cannot exceed 4 bytes (is {0} bytes)".format(len(data)))
         self.in_data_exchange(bytearray([MIFARE_COMMAND_WRITE_4,address]) + data + (b'\x00' * (4 - len(data))))
-    
-    def set_baseweight_gutter(self,str_of_bytes):
-        """ This is just to give the value informtion code when storing it on the ntag, 'B'stnds for BaseWeight """
-        #byte_array = bytearray(b'B' + str_of_bytes)
-        byte_array = bytearray(str_of_bytes)
-        
-        
-        """ deviding the string of bytes because on block can only take up 4 bytes"""
-        first_four_bytes = byte_array[0:4]
-        last_four_bytes = byte_array[4:8]
-        self.mifare_write_ultralight(BASE_WEIGHT_ADRS, first_four_bytes)
-        self.mifare_write_ultralight((BASE_WEIGHT_ADRS + 1), last_four_bytes)
-        
-        self.write_last_messured(str_of_bytes)
 
-    def write_last_messured(self,str_of_bytes):
-        byte_array = bytearray(b'W' + str_of_bytes)# 'W' stands for Weight
-        
-        first_four_bytes = byte_array[0:4]
-        last_four_bytes = byte_array[4:8]
-        self.mifare_write_ultralight(LST_MESSURED_WEIGHT_ADRS, first_four_bytes)
-        self.mifare_write_ultralight((LST_MESSURED_WEIGHT_ADRS + 1), last_four_bytes)
-        
-        
-    def set_gutter_type(self, str_of_bytes):
-        """the first for bytes wil be written if the str_of_byte is longer then  bytes"""
-        self.mifare_write_standard(GUTTER_TYPE_ADRS, str_of_bytes)
-        #self.mifare_write_ultralight(GUTTER_TYPE_ADRS+1, str_of_bytes[4:8])
-        
-    
-    def increment_gutter_usage(self):
-        mx_count = 4294967294
-        counter = self.in_data_exchange(bytearray([MIFARE_COMMAND_READ,USE_COUNT]))
-        new_int = int.from_bytes(counter[0:4],"big")+1
-        x = (1).to_bytes
-        print(counter[0:4])
-        print(new_int)
-        #if new_int > mx_count:
-         #   warnings.warn('max count of 4294967295 reched; count wil be reset to zero!' )
-            #self.reset_gutter_used()
-            
-        new_byte = new_int.to_bytes(4,"big")
-        
-        print(a)
-       
-        self.mifare_write_standard(USE_COUNT,new_byte)
-    
-    def reset_gutter_used(self):
-        count = b'\x00\x00\x00\x00'
-        self.mifare_write_standard(USE_COUNT,count)
-    
-    def read_base_weight(self):
-        """ returns the base weight"""
-        weights =  self.in_data_exchange(bytearray([MIFARE_COMMAND_READ,BASE_WEIGHT_ADRS]))
-        if weights[0:1]!= b'B':
-            print("No Base weight found; set Base weight first?")
-            return weights
+    def mifare_read_access(self,address):
+        """Returns the access conditions for the block at the given address
+        in a three-tuple of booleans (C1,C2,C3)."""
+        sector, index = self.mifare_sector_block(address)
+        if address < 128:
+            data = self.mifare_read(address | 3)
         else:
-            return weights[1:8].decode()
+            data = self.mifare_read(address | 15)
+            index = math.floor(index / 5)
+        return (data[7] & 1 << 4 + index > 0,data[8] & 1 << index > 0,data[8] & 1 << 4 + index > 0)
 
-    def read_last_weight(self):
-        weights =  self.in_data_exchange(bytearray([MIFARE_COMMAND_READ,LST_MESSURED_WEIGHT_ADRS]))
-        if weights[0:1]!= b'W':
-            print("No last weight found; reset Base weight first")
-            return weights
+    def mifare_write_access(self,address,c1,c2,c3,key_a,key_b):
+        """Changes the access conditions for the block at the given address
+        to the three booleans c1,c2,c3.
+
+        YOU SHOULD REALLY KNOW WHAT YOU'RE DOING HERE! With the wrong,
+        settings, you may shut yourself out of your card. The keys A
+        and B must also be provided because they cannot be read and
+        may therefore be overwritten by zeroes (as returned by a
+        regular read on the trailer sector).
+        """
+        sector, index = self.mifare_sector_block(address)
+        if address < 128:
+            trailer_address = address | 3
         else:
-            return weights[1:8].decode()
-        
-    def gutter_info(self):
-        "these variables store the bytearrays from the address blocks that are used " 
-        weights =  self.in_data_exchange(bytearray([MIFARE_COMMAND_READ,BASE_WEIGHT_ADRS]))
-        type_gutter = self.in_data_exchange(bytearray([MIFARE_COMMAND_READ,GUTTER_TYPE_ADRS]))
-        counts = self.in_data_exchange(bytearray([MIFARE_COMMAND_READ,USE_COUNT]))
-        
-        "these variables take the value out of the bytearray and makes  srting of them"
-        base_weight = weights[0:7].decode()
-        last_messured = weights[9:16].decode()
-        gutter_type = type_gutter[0:4].decode()
-        used_count = str(int.from_bytes(counts[0:4],"big"))
-        
-        "string array"
-        gutter_info = [base_weight,last_messured, gutter_type, used_count]
-        return gutter_info
-        
+            trailer_address = address | 15
+            index = math.floor(index / 5)
+        data = self.mifare_read(trailer_address)
+        if c1:
+            data[7] |= 1 << 4 + index
+            data[6] &= ~(1 << index)
+        else:
+            data[7] &= ~(1 << 4 + index)
+            data[6] |= 1 << index
+        if c2:
+            data[8] |= 1 << index
+            data[6] &= ~(1 << 4 + index)
+        else:
+            data[8] &= ~(1 << index)
+            data[6] |= 1 << 4 + index
+        if c3:
+            data[8] |= 1 << 4 + index
+            data[7] &= ~(1 << index)
+        else:
+            data[8] &= ~(1 << 4 + index)
+            data[7] |= 1 << index
+        data = key_a + data[6:10] + key_b
+        self.mifare_write_standard(trailer_address,data)
+
+    def mifare_change_keys(self,address,key_a,key_b):
+        """Changes the authorization keys A and B for the block at
+        the given address.
+
+        KEYS MAY NOT BE READABLE SO MAKE SURE YOU WRITE THEM DOWN!
+        If you forget a key (especially key A), you may not be able
+        to authenticate a block anymore and therefore not read it
+        or write to it. The factory preset for keys is always
+        b'\xFF\xFF\xFF\xFF\xFF\xFF' as defined in MIFARE_FACTORY_KEY.
+        """
+        if address < 128:
+            trailer_address = address | 3
+        else:
+            trailer_address = address | 15
+        data = self.mifare_read(trailer_address)
+        data = key_a + data[6:10] + key_b
+        self.mifare_write_standard(trailer_address,data)

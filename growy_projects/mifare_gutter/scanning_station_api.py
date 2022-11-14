@@ -3,6 +3,7 @@ from flask_restful import Resource, Api, reqparse
 from uart_com import SerialToScale
 from py532lib.mifare_gutter import *
 
+
 card = MifareGutter()
 card.SAMconfigure()
 card.set_max_retries(MIFARE_WAIT_FOR_ENTRY)

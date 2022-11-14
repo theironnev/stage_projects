@@ -27,6 +27,7 @@ from py532lib.constants import *
 import logging
 import math
 import warnings
+import datetime
 
 
 MIFARE_COMMAND_READ = 0x30
@@ -36,10 +37,12 @@ MIFARE_WAIT_FOR_ENTRY = 0xFF # MxRtyPassiveActivation value: wait until card ent
 MIFARE_SAFE_RETRIES = 5 # This number of retries seems to detect most cards properlies.
 
 "address of hese parameters have to stay next to ech other in the same order fot de read functions to work"
-BASE_WEIGHT_ADRS = 0x10  #  BASE WEIGHT stored on 2 blocks address{0x10 & 0x11}
-LST_MESSURED_WEIGHT_ADRS = 0x12  #  LAST MESSURED WEIGHT is also stored on 2 blocks addresss{0x12 & 0x13}
-GUTTER_TYPE_ADRS = 0x14
-USE_COUNT = 0x15
+GUTTER_TYPE_ADRS = 0x10
+NET_WEIGHT_ADRS = 0x12  #  BASE WEIGHT stored on 2 blocks address{0x12 & 0x13}
+USE_COUNT_ADRS= 0x14    #address 0x14 & 0x15
+DATE_TIME_ADRS =0x16
+
+
 
 
 
@@ -93,6 +96,9 @@ class MifareGutter(i2c.Pn532_i2c):
             return False
         uid_length = response[6]
         self._uid = response[7:7 + uid_length]
+        self._uid="%02X %02X %02X %02X %02X %02X %02X" %(self._uid[0], self._uid[1], self._uid[2],
+                                                         self._uid[3], self._uid[4],self._uid[5], self._uid[6])
+        self._uid = self._uid.replace(" ", ":")
         return self._uid
 
     def in_data_exchange(self,data):
@@ -173,86 +179,76 @@ class MifareGutter(i2c.Pn532_i2c):
             raise IndexError("Data cannot exceed 4 bytes (is {0} bytes)".format(len(data)))
         self.in_data_exchange(bytearray([MIFARE_COMMAND_WRITE_4,address]) + data + (b'\x00' * (4 - len(data))))
     
-    def set_baseweight_gutter(self,str_of_bytes):
+    def set_netweight_gutter(self,str_of_bytes):
         """ This is just to give the value informtion code when storing it on the ntag, 'B'stnds for BaseWeight """
-        #byte_array = bytearray(b'B' + str_of_bytes)
         byte_array = bytearray(str_of_bytes)
         
         
         """ deviding the string of bytes because on block can only take up 4 bytes"""
         first_four_bytes = byte_array[0:4]
         last_four_bytes = byte_array[4:8]
-        self.mifare_write_ultralight(BASE_WEIGHT_ADRS, first_four_bytes)
-        self.mifare_write_ultralight((BASE_WEIGHT_ADRS + 1), last_four_bytes)
+        self.mifare_write_ultralight(NET_WEIGHT_ADRS, first_four_bytes)
+        self.mifare_write_ultralight((NET_WEIGHT_ADRS + 1), last_four_bytes)
         
-        self.write_last_messured(str_of_bytes)
 
-    def write_last_messured(self,str_of_bytes):
-        byte_array = bytearray(b'W' + str_of_bytes)# 'W' stands for Weight
+    def set_datetime(self):
+        date = datetime.datetime.now()
+        date = date.strftime("%y%m%d%H%M")
         
-        first_four_bytes = byte_array[0:4]
-        last_four_bytes = byte_array[4:8]
-        self.mifare_write_ultralight(LST_MESSURED_WEIGHT_ADRS, first_four_bytes)
-        self.mifare_write_ultralight((LST_MESSURED_WEIGHT_ADRS + 1), last_four_bytes)
+        int_datetime = int(date)
+     
+        byte_array = int_datetime.to_bytes(4,"big")
+        self.mifare_write_ultralight(DATE_TIME_ADRS, byte_array)
+
         
         
     def set_gutter_type(self, str_of_bytes):
         """the first for bytes wil be written if the str_of_byte is longer then  bytes"""
-        self.mifare_write_standard(GUTTER_TYPE_ADRS, str_of_bytes)
-        #self.mifare_write_ultralight(GUTTER_TYPE_ADRS+1, str_of_bytes[4:8])
+        self.mifare_write_ultralight(GUTTER_TYPE_ADRS, str_of_bytes[0:4])
+        self.mifare_write_ultralight(GUTTER_TYPE_ADRS+1, str_of_bytes[4:8])
+        
+    def s32(self,value):
+        return -(value &0x80000000)| (value & 0x7fffffff)
         
     
     def increment_gutter_usage(self):
         mx_count = 4294967294
-        counter = self.in_data_exchange(bytearray([MIFARE_COMMAND_READ,USE_COUNT]))
-        new_int = int.from_bytes(counter[0:4],"big")+1
-        x = (1).to_bytes
+        counter = self.in_data_exchange(bytearray([MIFARE_COMMAND_READ,USE_COUNT_ADRS]))
+        de = self.s32(counter[0:4])
+        new_int = int.from_bytes(de,"big")+1
         print(counter[0:4])
         print(new_int)
+        
         #if new_int > mx_count:
          #   warnings.warn('max count of 4294967295 reched; count wil be reset to zero!' )
             #self.reset_gutter_used()
             
         new_byte = new_int.to_bytes(4,"big")
         
-        print(a)
+        scomplement = self.s32(new_byte) 
        
-        self.mifare_write_standard(USE_COUNT,new_byte)
+        self.mifare_write_ultralight(USE_COUNT_ADRS,scomplement)
     
     def reset_gutter_used(self):
         count = b'\x00\x00\x00\x00'
-        self.mifare_write_standard(USE_COUNT,count)
+        self.mifare_write_standard(USE_COUNT_ADRS,count)
     
-    def read_base_weight(self):
-        """ returns the base weight"""
-        weights =  self.in_data_exchange(bytearray([MIFARE_COMMAND_READ,BASE_WEIGHT_ADRS]))
-        if weights[0:1]!= b'B':
-            print("No Base weight found; set Base weight first?")
-            return weights
-        else:
-            return weights[1:8].decode()
-
-    def read_last_weight(self):
-        weights =  self.in_data_exchange(bytearray([MIFARE_COMMAND_READ,LST_MESSURED_WEIGHT_ADRS]))
-        if weights[0:1]!= b'W':
-            print("No last weight found; reset Base weight first")
-            return weights
-        else:
-            return weights[1:8].decode()
         
     def gutter_info(self):
-        "these variables store the bytearrays from the address blocks that are used " 
-        weights =  self.in_data_exchange(bytearray([MIFARE_COMMAND_READ,BASE_WEIGHT_ADRS]))
-        type_gutter = self.in_data_exchange(bytearray([MIFARE_COMMAND_READ,GUTTER_TYPE_ADRS]))
-        counts = self.in_data_exchange(bytearray([MIFARE_COMMAND_READ,USE_COUNT]))
+        "these variables store the bytearrays from the address blocks that are used "
+        type_gutter = self.mifare_read(GUTTER_TYPE_ADRS)
+        weight =  self.mifare_read(NET_WEIGHT_ADRS)
+        counts = self.mifare_read(USE_COUNT_ADRS)
+        timedate = self.mifare_read(DATE_TIME_ADRS)
         
         "these variables take the value out of the bytearray and makes  srting of them"
-        base_weight = weights[0:7].decode()
-        last_messured = weights[9:16].decode()
-        gutter_type = type_gutter[0:4].decode()
+        gutter_type = type_gutter[0:7].decode()
+        net_weight = weight[0:7].decode()
         used_count = str(int.from_bytes(counts[0:4],"big"))
+        datetime = str(int.from_bytes(timedate[0:4],"big"))
         
         "string array"
-        gutter_info = [base_weight,last_messured, gutter_type, used_count]
+        gutter_info = [gutter_type,net_weight, used_count, datetime]
+        
         return gutter_info
         

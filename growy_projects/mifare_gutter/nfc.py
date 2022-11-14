@@ -31,9 +31,19 @@ def test_increment():
     
 
 #test_increment()
-test_write(0x15,b'\xFF\x30\x60\x01')
-test_read(0x15)
+#card.set_netweight_gutter("2456".encode())
+#card.set_gutter_type("STEEL".encode())
+#card.set_datetime()
+#card.increment_gutter_usage()
+card.reset_gutter_used()
 
-a = '\xik\xzeg\xma\xar'
-print(bytearray(a))
-print(card.gutter_info())
+while True:
+    card.increment_gutter_usage()
+    b = card. mifare_read(USE_COUNT_ADRS)
+    print(b)
+    if b == '53':
+        print("einde")
+
+a = card.gutter_info()
+print(a)
+#print(card.gutter_info())

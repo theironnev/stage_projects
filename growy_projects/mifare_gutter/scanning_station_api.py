@@ -49,8 +49,13 @@ class InitGutter(Resource):
         args = initGutter_post_args.parse_args()
         uid = card.scan_field()
         if args["RFID"] == uid:
+<<<<<<< HEAD
             card.set_netweight_gutter(args["gutterNetWeight"].encode())
             card.set_gutter_type(args["gutterType"].encode())
+=======
+            card.set_baseweight_gutter()
+            card.set_gutter_type()
+>>>>>>> af5ee5f (no message)
             card.set_datetime()
         print(args)
         return {"tag":args}

@@ -36,10 +36,10 @@ MIFARE_COMMAND_WRITE_4 = 0xA2
 MIFARE_WAIT_FOR_ENTRY = 0xFF # MxRtyPassiveActivation value: wait until card enters field.
 MIFARE_SAFE_RETRIES = 5 # This number of retries seems to detect most cards properlies.
 
-"address of hese parameters have to stay next to ech other in the same order fot de read functions to work"
+
 GUTTER_TYPE_ADRS = 0x10
 NET_WEIGHT_ADRS = 0x12  #  BASE WEIGHT stored on 2 blocks address{0x12 & 0x13}
-USE_COUNT_ADRS= 0x14    #address 0x14 & 0x15
+USE_COUNT_ADRS= 0x18    #address 0x14 & 0x15
 DATE_TIME_ADRS =0x16
 
 
@@ -113,6 +113,7 @@ class MifareGutter(i2c.Pn532_i2c):
         frame = Pn532Frame(frame_type=PN532_FRAME_TYPE_DATA, data=bytearray([PN532_COMMAND_INDATAEXCHANGE, 0x01]) + data)
         self.send_command_check_ack(frame)
         response_frame = self.read_response()
+        
         if response_frame.get_frame_type() == PN532_FRAME_TYPE_ERROR:
             raise IOError("InDataExchange failed (error frame returned)")
         response = response_frame.get_data()
@@ -207,27 +208,29 @@ class MifareGutter(i2c.Pn532_i2c):
         self.mifare_write_ultralight(GUTTER_TYPE_ADRS, str_of_bytes[0:4])
         self.mifare_write_ultralight(GUTTER_TYPE_ADRS+1, str_of_bytes[4:8])
         
-    def s32(self,value):
-        return -(value &0x80000000)| (value & 0x7fffffff)
+    def increment(self):
+        counter = self.mifare_read(USE_COUNT_ADRS)
+        new_str = counter[0:4].decode("utf-8").replace("\x00","0")
+        print(new_str)
+        new_int = int(new_str)+1
+        print(new_int)
+        
+        new_str = str(new_int)
+        print(new_str.encode())
+        self.mifare_write_ultralight(USE_COUNT_ADRS,new_str.encode())
+        
         
     
     def increment_gutter_usage(self):
         mx_count = 4294967294
-        counter = self.in_data_exchange(bytearray([MIFARE_COMMAND_READ,USE_COUNT_ADRS]))
-        de = self.s32(counter[0:4])
-        new_int = int.from_bytes(de,"big")+1
+        counter = self.mifare_read(USE_COUNT_ADRS)
+        new_int = int.from_bytes(counter[0:4],"little")+1
         print(counter[0:4])
         print(new_int)
+    
+        new_byte = new_int.to_bytes(4,"little")
+        self.mifare_write_ultralight(USE_COUNT_ADRS,new_byte)
         
-        #if new_int > mx_count:
-         #   warnings.warn('max count of 4294967295 reched; count wil be reset to zero!' )
-            #self.reset_gutter_used()
-            
-        new_byte = new_int.to_bytes(4,"big")
-        
-        scomplement = self.s32(new_byte) 
-       
-        self.mifare_write_ultralight(USE_COUNT_ADRS,scomplement)
     
     def reset_gutter_used(self):
         count = b'\x00\x00\x00\x00'
@@ -242,9 +245,9 @@ class MifareGutter(i2c.Pn532_i2c):
         timedate = self.mifare_read(DATE_TIME_ADRS)
         
         "these variables take the value out of the bytearray and makes  srting of them"
-        gutter_type = type_gutter[0:7].decode()
-        net_weight = weight[0:7].decode()
-        used_count = str(int.from_bytes(counts[0:4],"big"))
+        gutter_type = type_gutter[0:7].decode("utf-8").replace("\x00","")
+        net_weight = weight[0:7].decode("utf-8").replace("\x00","")
+        used_count = str(int.from_bytes(counts[0:4],"big")).replace("\x00","")
         datetime = str(int.from_bytes(timedate[0:4],"big"))
         
         "string array"

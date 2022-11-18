@@ -1,21 +1,37 @@
 import serial
+from serial import SerialException
 import time
 
+port = '/dev/ttyACM0'
+baudrate = 115200
 
 class SerialToScale:
+    
     def __init__(self):
-        self.ser = serial.Serial('/dev/ttyACM0', 115200, timeout=0.5)
-        self.ser.reset_input_buffer()
+        try:
+            self.ser = serial.Serial(port, baudrate, timeout=0.5)
+            self.ser.reset_input_buffer()
+            self.connect = True
+        except SerialException:
+            print("port not found")
+            self.connect = False
 
     def return_weight(self):
-        self.ser.write("w\n".encode('utf-8'))
-        line = self.ser.readline().rstrip()
-        print(line)
-
-        return line
+        if self.connect == True:
+            self.ser.write("w\n".encode('utf-8'))
+            line = self.ser.readline().rstrip()
+            print(line)
+            return line
+        else:
+            print("no serial port found")
+            return b'none'
+            
 
     def send_tare(self):
-        self.ser.write("t\n".encode('utf-8'))
+        if sel.connect == True:
+            self.ser.write("t\n".encode('utf-8'))
+        else:
+            print("no scale to tare")
     #    line =ser.readline().rstrip()
     #    print(line)
 

@@ -6,13 +6,6 @@ card.set_max_retries(MIFARE_WAIT_FOR_ENTRY)
 
 uid = card.scan_field()
 
-weight = bytearray(b'8874.21') 
-gutter_type =  b'plass'
-char = b'hoide' 
-#card.set_baseweight_gutter(weight)
-
-#uid = "%02x%02x%02x%02x%02x%02x%02x"%(data
-
 
 def test_write(adres, data):
     card.mifare_write_ultralight(adres,data)
@@ -25,15 +18,31 @@ def test_read(adres):
     print(new_int)
 
 def test_increment():
-    card.reset_gutter_used()
+    counter = b'\x00\x00\x00\x00'
     while True:
-        card.increment_gutter_usage()
+        new_int = int.from_bytes(counter,"big")+1
+        print(counter)
+        print(new_int)
+        
+            
+        new_byte = new_int.to_bytes(4,"big")
+        
+        counter = new_byte
     
 
-#test_increment()
-test_write(0x15,b'\xFF\x30\x60\x01')
-test_read(0x15)
+#card.mifare_write_ultralight(0x18, b'\x00\x00\x00\x35')
+#print(card.mifare_read(0x18))
 
-a = '\xik\xzeg\xma\xar'
-print(bytearray(a))
-print(card.gutter_info())
+#test_increment()
+#card.set_netweight_gutter(b'\x00\x00\x00\x00')
+#card.set_gutter_type(b'\x00\x00\x00\x00')
+#card.set_datetime()
+card.reset_gutter_used()
+#card.increment()
+#print(card.gutter_info())
+
+while True:
+    card.increment_gutter_usage()
+    print(card.gutter_info())
+    
+    

@@ -1,2 +1,2 @@
 
-![Testing python GUI](/images/UI_test.mp4)
+![Testing python GUI](./images/UI_test.mp4)

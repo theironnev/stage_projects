@@ -47,3 +47,6 @@ scanner.SAMconfigure()
 
 uid = scanner.scan_field()
 ```
+
+# link to end product video
+![scanningstation](./product.mp4)
